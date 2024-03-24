@@ -1,3 +1,14 @@
-# npm i - не надо делать
-//
-# npm run dev 
+# Бот с цитатами
+
+## Сборка:
+
+```bash
+docker-compose build
+```
+
+## Запуск:
+
+```bash
+docker-compose up -d
+```
+
