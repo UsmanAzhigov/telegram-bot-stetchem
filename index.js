@@ -1,8 +1,9 @@
+require('dotenv').config();
 const TelegramApi = require('node-telegram-bot-api');
 const axios = require('axios');
 const cheerio = require('cheerio');
 
-const token = '6526980209:AAHtXb9qcmGSqpGjLAzjA8Q-b9DJCOTb7fM';
+const token = process.env.TELEGRAM_BOT_TOKEN;
 const bot = new TelegramApi(token, { polling: true });
 
 let chatId;
@@ -20,9 +21,9 @@ function sendRandomQuote() {
 
   // Добавляем цитаты с других веб-сайтов (пример)
   const website1Quotes = scrapeQuotesFromWebsite('https://tgstat.ru/channel/@jas_statham');
-  const website2Quotes = scrapeQuotesFromWebsite('https://tgstat.ru/channel/@jas_statham');
+  // Добавьте еще сайты, если нужно
 
-  Promise.all([website1Quotes, website2Quotes])
+  Promise.all([website1Quotes])
     .then((results) => {
       results.forEach((quotes) => {
         allQuotes.push(...quotes);
@@ -30,7 +31,7 @@ function sendRandomQuote() {
 
       const randomIndex = Math.floor(Math.random() * allQuotes.length);
       const randomQuote = allQuotes[randomIndex];
-      const quoteWithCredit = `<i>"${randomQuote}"</i>\n\n© Джейсон Стетхэм`;
+      const quoteWithCredit = `<i>"${randomQuote}"</i>\n\n`;
       bot.sendMessage(chatId, quoteWithCredit, { parse_mode: 'HTML' });
     })
     .catch((error) => {
@@ -45,7 +46,7 @@ function scrapeQuotesFromWebsite(url) {
       const $ = cheerio.load(response.data);
       const quotes = [];
 
-      $('.quote').each((index, element) => {
+      $('.post-text').each((index, element) => {
         const quote = $(element).text().trim();
         quotes.push(quote);
       });
