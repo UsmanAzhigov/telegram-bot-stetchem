@@ -1,0 +1,40 @@
+version: "3.8"
+services:
+  bot:
+    build: "."
+    restart: on-failure
+    depends_on:
+      postgres:
+        condition: service_healthy
+
+  postgres:
+    image:
+      postgres:15.2-alpine
+    environment:
+      POSTGRES_DB: ${PGDATABASE}
+      POSTGRES_USER: ${PGUSER}
+      POSTGRES_PASSWORD: ${PGPASSWORD}
+      PGDATA: "/var/lib/postgresql/data/pgdata"
+    volumes:
+      - .:/var/lib/postgresql/data
+    ports:
+      - "5432"
+    env_file:
+      - .env
+    restart: on-failure
+    healthcheck:
+      test: [ "CMD-SHELL", "pg_isready -U ${PGUSER}" ]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+  migrate:
+    image: migrate/migrate
+    env_file:
+      - .env
+    volumes:
+      - ./migrations:/migrations
+    command: [ "-path", "/migrations", "-database",  "postgres://${PGUSER}:${PGPASSWORD}@${PGHOST}/${PGDATABASE}?sslmode=${PGSSLMODE}", "up" ]
+    depends_on:
+      postgres:
+        condition: service_healthy
