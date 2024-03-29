@@ -1,7 +1,5 @@
 require('dotenv').config();
 const TelegramApi = require('node-telegram-bot-api');
-const axios = require('axios');
-const cheerio = require('cheerio');
 const { Pool } = require('pg');
 
 const token = process.env.TELEGRAM_BOT_TOKEN;
@@ -25,117 +23,101 @@ pool.on('error', (error) => {
 
 let chatId;
 
+bot.setMyCommands([
+  { command: '/start', description: 'Запустить бота' },
+  { command: '/get', description: 'Получить рандомную цитату' },
+  { command: '/add', description: 'Добавить цитату используя команду /add и ваша цитат' },
+  { command: '/about', description: 'Информация о боте' },
+  { command: '/help', description: 'Список команд' },
+]);
+
 bot.onText(/\/start/, (msg) => {
+  chatId = msg.chat.id;
+  console.log('Бот получил команду /start.');
+  bot.sendMessage(chatId, 'Узнайте больше о боте, используйте команду /help');
+});
+
+bot.onText(/\/get/, (msg) => {
   chatId = msg.chat.id;
   console.log('Бот получил команду /start.');
   sendRandomQuote();
 });
 
-function scrapeQuotesFromWebsite(url) {
-  return axios
-    .get(url)
-    .then((response) => {
-      const $ = cheerio.load(response.data);
-      const quotes = [];
+bot.onText(/\/add/, (msg) => {
+  chatId = msg.chat.id;
+});
 
-      $('.post-text').each((index, element) => {
-        const quote = $(element).text().trim();
-        quotes.push(quote);
-      });
+bot.onText(/\/about/, (msg) => {
+  chatId = msg.chat.id;
+  const username = '@Chel06_ing';
+  const githubLink = 'https://github.com/UsmanAzhigov';
+  const aboutMessage = `Никнейм: ${username}\nGitHub: ${githubLink}`;
+  bot.sendMessage(chatId, aboutMessage);
+});
 
-      return quotes;
-    })
-    .catch((error) => {
-      console.error('Ошибка при скрапинге цитат с веб-сайта:', error);
-      return [];
-    });
-}
+bot.onText(/\/help/, (msg) => {
+  chatId = msg.chat.id;
+  bot.sendMessage(
+    chatId,
+    'Список команд:\n/get - получить рандомную цитату\n/add - добавить цитату\n/about - информация о боте\n/help - список команд',
+  );
+});
 
-function saveQuoteToDatabase(quote) {
-  // Проверяем, не является ли цитата пустой строкой
+bot.on('message', (msg) => {
+  if (msg.text && msg.text !== '/add' && msg.text !== '/get') {
+    if (chatId && msg.text.startsWith('/add')) {
+      const quote = msg.text.substring(5).trim();
+      const author = `${msg.from.first_name}`.trim();
+      saveQuoteToDatabase(quote, author);
+    } else {
+      bot.sendMessage(chatId, 'Для добавления цитаты используйте команду');
+    }
+  }
+});
+
+function saveQuoteToDatabase(quote, author) {
   if (!quote.trim()) {
     console.log('Пустая цитата. Пропускаем сохранение в базу данных.');
     return;
   }
 
-  // Удаляем "(C) Джейсон Стетхем" из цитаты
-  const cleanedQuote = quote.replace('(C) Джейсон Стетхем', '').trim();
+  const cleanedQuote = quote.trim();
 
   const query = {
-    text: 'INSERT INTO quotes(quote_text) VALUES($1)',
-    values: [cleanedQuote],
+    text: 'INSERT INTO quotes (quote_text, author) VALUES ($1, $2)',
+    values: [cleanedQuote, author],
   };
 
   pool
     .query(query)
     .then(() => {
       console.log('Цитата успешно добавлена в базу данных.');
+      bot.sendMessage(chatId, 'Цитата успешно добавлена в базу данных!');
     })
     .catch((error) => {
       console.error('Ошибка при добавлении цитаты в базу данных:', error);
-    });
-}
-
-function fetchQuoteFromDatabase() {
-  const query = 'SELECT quote_text FROM quotes ORDER BY RANDOM() LIMIT 1';
-
-  pool
-    .query(query)
-    .then((result) => {
-      if (result.rows.length > 0) {
-        const quote = result.rows[0].quote_text;
-        const quoteWithCredit = `<i>"${quote}"</i>\n\n`;
-        bot.sendMessage(chatId, quoteWithCredit, { parse_mode: 'HTML' });
-      } else {
-        console.log('База данных не содержит цитат.');
-      }
-    })
-    .catch((error) => {
-      console.error('Ошибка при получении цитаты из базы данных:', error);
+      bot.sendMessage(chatId, 'Не удалось добавить цитату в базу данных.');
     });
 }
 
 function sendRandomQuote() {
-  const allQuotes = [];
-  const stathamQuotes = require('./module');
-  allQuotes.push(...stathamQuotes);
+  if (!chatId) {
+    console.log('chatId еще не установлен.');
+    return;
+  }
 
-  const website1Quotes = scrapeQuotesFromWebsite('https://tgstat.ru/channel/@jas_statham');
+  const query = 'SELECT quote_text, author FROM quotes ORDER BY RANDOM() LIMIT 1';
 
-  Promise.all([website1Quotes])
-    .then((results) => {
-      results.forEach((quotes) => {
-        allQuotes.push(...quotes);
-      });
-
-      const nonEmptyQuotes = allQuotes.filter((quote) => quote.trim() !== '');
-
-      if (nonEmptyQuotes.length === 0) {
-        console.log('Все цитаты пусты. Пропускаем отправку.');
-        return;
-      }
-
-      const randomIndex = Math.floor(Math.random() * nonEmptyQuotes.length);
-      const randomQuote = nonEmptyQuotes[randomIndex];
-
-      saveQuoteToDatabase(randomQuote);
-
-      const quoteWithCredit = `<i>"${randomQuote}"</i>\n\n`;
+  pool
+    .query(query)
+    .then((result) => {
+      const randomQuote = result.rows[0];
+      const quoteWithCredit = `<i>"${randomQuote.quote_text}"</i>\n\n(С) ${randomQuote.author}`;
       bot.sendMessage(chatId, quoteWithCredit, { parse_mode: 'HTML' });
     })
     .catch((error) => {
-      console.error('Ошибка при получении цитат:', error);
+      console.error('Ошибка при получении случайной цитаты из базы данных:', error);
     });
 }
-
-function sendNightlyMessage() {
-  const date = new Date();
-
-  if (date.getHours() === 23 && date.getMinutes() === 28) {
-    bot.sendMessage(chatId, 'Привет, я бот! Это ежедневное сообщение в 23:28.');
-  }
-}
-
-setInterval(sendNightlyMessage, 60000);
 
 console.log('Бот запущен.');
