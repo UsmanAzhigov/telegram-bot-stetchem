@@ -45,6 +45,7 @@ bot.onText(/\/get/, (msg) => {
 
 bot.onText(/\/add/, (msg) => {
   chatId = msg.chat.id;
+  bot.sendMessage(chatId, 'Я же сказал, как добавлять, не понятно?!');
 });
 
 bot.onText(/\/about/, (msg) => {
@@ -70,7 +71,7 @@ bot.on('message', (msg) => {
       const author = `${msg.from.first_name}`.trim();
       saveQuoteToDatabase(quote, author);
     } else {
-      bot.sendMessage(chatId, 'Для добавления цитаты используйте команду');
+      console.log(chatId, 'Для добавления цитаты используйте команду');
     }
   }
 });
