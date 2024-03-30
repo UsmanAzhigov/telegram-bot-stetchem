@@ -45,7 +45,6 @@ bot.onText(/\/get/, (msg) => {
 
 bot.onText(/\/add/, (msg) => {
   chatId = msg.chat.id;
-  bot.sendMessage(chatId, 'Я же сказал, как добавлять, не понятно?!');
 });
 
 bot.onText(/\/about/, (msg) => {
